@@ -4,6 +4,10 @@ from functools import wraps
 from db import db_cursor
 import os
 import re
+import uuid
+from werkzeug.utils import secure_filename
+from crypto_utils import encrypt_bytes
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret_key")
@@ -55,7 +59,7 @@ def index():
 
 
 # -------------------------
-# Register
+# Register (Auto Login)
 # -------------------------
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -65,7 +69,7 @@ def register():
         confirm = request.form.get("confirm", "")
 
         if not username or not password or not confirm:
-            flash("All fields are required")
+            flash("Invalid username or password")
             return redirect(url_for("register"))
 
         if not is_valid_username(username):
@@ -92,8 +96,13 @@ def register():
                     """,
                     (username, username_norm, password_hash)
                 )
-            flash("Registration successful. Please login.")
-            return redirect(url_for("login"))
+                user_id = cursor.lastrowid
+
+            # Auto login after registration
+            session["user_id"] = user_id
+            session["username"] = username
+
+            return redirect(url_for("dashboard"))
 
         except Exception as e:
             print("DB ERROR:", e)
@@ -137,7 +146,7 @@ def login():
 
 
 # -------------------------
-# Dashboard
+# Dashboard (Protected)
 # -------------------------
 @app.route("/dashboard")
 @login_required
@@ -154,6 +163,48 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+@app.route("/upload", methods=["POST"])
+@login_required
+def upload_file():
+    if "file" not in request.files:
+        return {"error": "No file provided"}, 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return {"error": "Empty filename"}, 400
+
+    file_bytes = file.read()
+
+    if not file_bytes:
+        return {"error": "Empty file"}, 400
+
+    # Encrypt file bytes (NO plaintext storage)
+    encrypted_data = encrypt_bytes(file_bytes)
+
+    # Generate safe storage filename
+    stored_filename = f"{uuid.uuid4().hex}.bin"
+    storage_path = os.path.join(os.getenv("UPLOAD_DIR"), stored_filename)
+
+    # Save encrypted file
+    with open(storage_path, "wb") as f:
+        f.write(encrypted_data)
+
+    # Save metadata to DB
+    with db_cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO files (owner_id, original_filename, stored_filename)
+            VALUES (%s, %s, %s)
+            """,
+            (
+                session["user_id"],
+                secure_filename(file.filename),
+                stored_filename
+            )
+        )
+
+    return {"message": "File uploaded successfully"}, 200
 
 # -------------------------
 # Entry
