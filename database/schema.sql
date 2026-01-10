@@ -2,19 +2,31 @@
 CREATE DATABASE IF NOT EXISTS secure_file_share;
 USE secure_file_share;
 
+-- =========================
 -- USERS
+-- =========================
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL,              -- display only
-    username_normalized VARCHAR(50) COLLATE utf8mb4_bin NOT NULL;
+
+    -- Display username (case-preserved)
+    username VARCHAR(50) NOT NULL,
+
+    -- Normalized username (used for login & uniqueness)
+    username_normalized VARCHAR(50) COLLATE utf8mb4_bin NOT NULL UNIQUE,
+
+    -- Secure password hash
     password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE (username)
 );
 
+-- =========================
 -- FILES (OWNERSHIP)
+-- =========================
 CREATE TABLE files (
     id INT AUTO_INCREMENT PRIMARY KEY,
-
     owner_id INT NOT NULL,
 
     original_filename VARCHAR(255) NOT NULL,
@@ -31,7 +43,9 @@ CREATE TABLE files (
 CREATE INDEX idx_files_owner
 ON files (owner_id);
 
--- FILE SHARES (GRANTED ACCESS)
+-- =========================
+-- FILE SHARES
+-- =========================
 CREATE TABLE file_shares (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
@@ -59,17 +73,18 @@ CREATE TABLE file_shares (
 CREATE INDEX idx_file_shares_user
 ON file_shares (shared_with_user_id);
 
--- AUDIT LOGS (SECURITY & TRACEABILITY)
+-- =========================
+-- AUDIT LOGS
+-- =========================
 CREATE TABLE audit_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     user_id INT NULL,
     file_id INT NULL,
 
-    action VARCHAR(50) NOT NULL,      -- upload, share, download, access_attempt
-    success BOOLEAN NOT NULL,          -- true / false
-
-    ip_address VARCHAR(45),            -- supports IPv4 & IPv6
+    action VARCHAR(50) NOT NULL,
+    success BOOLEAN NOT NULL,
+    ip_address VARCHAR(45),
 
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

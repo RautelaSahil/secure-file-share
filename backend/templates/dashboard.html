@@ -41,12 +41,30 @@
   <!-- RIGHT COLUMN -->
   <div style="width:30%">
     <h3>Shared Files</h3>
-    <p>(No shared files yet)</p>
+    <div id="sharedFiles"></div>
   </div>
 
 </div>
 
+<!-- SHARE FILE MODAL -->
+<div id="shareBox" style="display:none; border:1px solid #aaa; padding:10px; margin-top:20px;">
+  <h4>Share File</h4>
+
+  <input id="shareUsername" placeholder="Target username"><br><br>
+
+  <label>Expiry (optional):</label><br>
+  <input id="shareExpiry" type="datetime-local"><br><br>
+
+  <button onclick="submitShare()">Share</button>
+  <button onclick="closeShare()">Cancel</button>
+
+  <p id="shareStatus"></p>
+</div>
+
 <script>
+/* =========================
+   UPLOAD LOGIC
+   ========================= */
 async function uploadFile() {
   const fileInput = document.getElementById("fileInput");
   const status = document.getElementById("uploadStatus");
@@ -83,13 +101,16 @@ async function uploadFile() {
       status.innerText = data.error || "Upload failed";
       status.style.color = "red";
     }
-  } catch (err) {
+  } catch {
     uploadBtn.disabled = false;
     status.innerText = "Network error";
     status.style.color = "red";
   }
 }
 
+/* =========================
+   OWNED FILES (CENTER)
+   ========================= */
 async function loadFiles() {
   const list = document.getElementById("fileList");
   list.innerHTML = "<li>Loading...</li>";
@@ -112,17 +133,104 @@ async function loadFiles() {
 
     files.forEach(f => {
       const li = document.createElement("li");
-      const date = new Date(f.uploaded_at);
-      li.innerText = `${f.original_filename} (${date.toLocaleString()})`;
+      li.innerHTML = `
+        ${f.original_filename}
+        <button onclick="openShare(${f.id})">Share</button>
+      `;
       list.appendChild(li);
     });
-  } catch (err) {
+
+  } catch {
     list.innerHTML = "<li>Failed to load files</li>";
   }
 }
 
-// Load files on page load
+/* =========================
+   SHARE MODAL LOGIC
+   ========================= */
+let selectedFileId = null;
+
+function openShare(fileId) {
+  selectedFileId = fileId;
+  document.getElementById("shareBox").style.display = "block";
+}
+
+function closeShare() {
+  document.getElementById("shareBox").style.display = "none";
+  document.getElementById("shareStatus").innerText = "";
+}
+
+async function submitShare() {
+  const username = document.getElementById("shareUsername").value.trim();
+  const expiry = document.getElementById("shareExpiry").value || null;
+  const status = document.getElementById("shareStatus");
+
+  if (!username) {
+    status.innerText = "Username required";
+    status.style.color = "red";
+    return;
+  }
+
+  const res = await fetch("/api/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file_id: selectedFileId,
+      username: username,
+      expires_at: expiry
+    })
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    status.innerText = "File shared successfully";
+    status.style.color = "green";
+  } else {
+    status.innerText = data.error || "Sharing failed";
+    status.style.color = "red";
+  }
+}
+
+/* =========================
+   SHARED FILES (RIGHT)
+   ========================= */
+async function loadSharedFiles() {
+  const container = document.getElementById("sharedFiles");
+  container.innerText = "Loading...";
+
+  const res = await fetch("/api/files/shared");
+  const files = await res.json();
+
+  if (!res.ok) {
+    container.innerText = "Error loading shared files";
+    return;
+  }
+
+  if (!files.length) {
+    container.innerText = "No shared files";
+    return;
+  }
+
+  container.innerHTML = "";
+
+  files.forEach(f => {
+    const div = document.createElement("div");
+
+    const expiryText = f.expires_at
+      ? `Expires: ${new Date(f.expires_at).toLocaleString()}`
+      : "No expiry";
+
+    div.innerText = `${f.original_filename} (Owner: ${f.owner}) — ${expiryText}`;
+    container.appendChild(div);
+  });
+}
+
+/* =========================
+   INIT
+   ========================= */
 loadFiles();
+loadSharedFiles();
 </script>
 
 </body>
