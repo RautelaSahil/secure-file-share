@@ -8,10 +8,18 @@ import uuid
 from werkzeug.utils import secure_filename
 from crypto_utils import encrypt_bytes
 
-
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret_key")
 
+# -------------------------
+# Upload Storage Config ✅
+# -------------------------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_DIR = os.getenv(
+    "UPLOAD_DIR",
+    os.path.abspath(os.path.join(BASE_DIR, "..", "storage", "encrypted"))
+)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # -------------------------
 # Username & Password Rules
@@ -35,7 +43,6 @@ def is_valid_password(password):
         return False
     return True
 
-
 # -------------------------
 # Login Required Decorator
 # -------------------------
@@ -47,7 +54,6 @@ def login_required(func):
         return func(*args, **kwargs)
     return wrapper
 
-
 # -------------------------
 # Index
 # -------------------------
@@ -56,7 +62,6 @@ def index():
     if "user_id" in session:
         return redirect(url_for("dashboard"))
     return redirect(url_for("login"))
-
 
 # -------------------------
 # Register (Auto Login)
@@ -98,10 +103,8 @@ def register():
                 )
                 user_id = cursor.lastrowid
 
-            # Auto login after registration
             session["user_id"] = user_id
             session["username"] = username
-
             return redirect(url_for("dashboard"))
 
         except Exception as e:
@@ -110,7 +113,6 @@ def register():
             return redirect(url_for("register"))
 
     return render_template("register.html")
-
 
 # -------------------------
 # Login
@@ -144,7 +146,6 @@ def login():
 
     return render_template("login.html")
 
-
 # -------------------------
 # Dashboard (Protected)
 # -------------------------
@@ -152,7 +153,6 @@ def login():
 @login_required
 def dashboard():
     return render_template("dashboard.html", username=session.get("username"))
-
 
 # -------------------------
 # Logout
@@ -163,6 +163,9 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+# -------------------------
+# ✅ Upload (FIXED & COMPLETE)
+# -------------------------
 @app.route("/upload", methods=["POST"])
 @login_required
 def upload_file():
@@ -175,22 +178,21 @@ def upload_file():
         return {"error": "Empty filename"}, 400
 
     file_bytes = file.read()
-
     if not file_bytes:
         return {"error": "Empty file"}, 400
 
-    # Encrypt file bytes (NO plaintext storage)
+    # Encrypt file bytes
     encrypted_data = encrypt_bytes(file_bytes)
 
-    # Generate safe storage filename
+    # Secure, server-generated filename
     stored_filename = f"{uuid.uuid4().hex}.bin"
-    storage_path = os.path.join(os.getenv("UPLOAD_DIR"), stored_filename)
+    storage_path = os.path.join(UPLOAD_DIR, stored_filename)
 
     # Save encrypted file
     with open(storage_path, "wb") as f:
         f.write(encrypted_data)
 
-    # Save metadata to DB
+    # Store metadata
     with db_cursor() as cursor:
         cursor.execute(
             """

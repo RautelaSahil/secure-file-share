@@ -23,10 +23,12 @@
 
   <!-- CENTER COLUMN -->
   <div style="width:50%">
-    <h3>Upload New File</h3>
+    <h3>Upload File</h3>
 
-    <input type="file" id="fileInput"><br><br>
-    <button id="uploadBtn" onclick="upload_file()">Upload</button>
+<form action="/upload" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <button type="submit">Upload</button>
+</form>
 
     <p id="uploadStatus"></p>
 
