@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
@@ -11,26 +12,20 @@
 
 <hr>
 
-<div style="display:flex; gap:20px">
+<div class="container">
 
-  <!-- LEFT COLUMN -->
-  <div style="width:20%">
+  <div class="card" style="width:20%">
     <h3>Options</h3>
     <button disabled>Upload File</button><br><br>
     <button disabled>My Files</button><br><br>
     <button disabled>Shared With Me</button>
   </div>
 
-  <!-- CENTER COLUMN -->
-  <div style="width:50%">
+  <div class="card" style="width:50%">
     <h3>Upload File</h3>
 
-<form action="/upload" method="POST" enctype="multipart/form-data">
-    <input type="file" name="file" required>
-    <button type="submit">Upload</button>
-</form>
-
-    <p id="uploadStatus"></p>
+    <input type="file" id="fileInput">
+    <button id="uploadBtn" onclick="uploadFile()">Upload</button>
 
     <hr>
 
@@ -38,200 +33,14 @@
     <ul id="fileList"></ul>
   </div>
 
-  <!-- RIGHT COLUMN -->
-  <div style="width:30%">
+  <div class="card" style="width:30%">
     <h3>Shared Files</h3>
-    <div id="sharedFiles"></div>
+    <div id="sharedFiles">Coming soon</div>
   </div>
 
 </div>
 
-<!-- SHARE FILE MODAL -->
-<div id="shareBox" style="display:none; border:1px solid #aaa; padding:10px; margin-top:20px;">
-  <h4>Share File</h4>
-
-  <input id="shareUsername" placeholder="Target username"><br><br>
-
-  <label>Expiry (optional):</label><br>
-  <input id="shareExpiry" type="datetime-local"><br><br>
-
-  <button onclick="submitShare()">Share</button>
-  <button onclick="closeShare()">Cancel</button>
-
-  <p id="shareStatus"></p>
-</div>
-
-<script>
-/* =========================
-   UPLOAD LOGIC
-   ========================= */
-async function uploadFile() {
-  const fileInput = document.getElementById("fileInput");
-  const status = document.getElementById("uploadStatus");
-  const uploadBtn = document.getElementById("uploadBtn");
-
-  if (!fileInput.files.length) {
-    status.innerText = "Please select a file";
-    status.style.color = "red";
-    return;
-  }
-
-  uploadBtn.disabled = true;
-  status.innerText = "Uploading...";
-  status.style.color = "blue";
-
-  const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
-
-  try {
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData
-    });
-
-    const data = await res.json();
-    uploadBtn.disabled = false;
-
-    if (res.ok) {
-      status.innerText = "Upload successful";
-      status.style.color = "green";
-      fileInput.value = "";
-      loadFiles();
-    } else {
-      status.innerText = data.error || "Upload failed";
-      status.style.color = "red";
-    }
-  } catch {
-    uploadBtn.disabled = false;
-    status.innerText = "Network error";
-    status.style.color = "red";
-  }
-}
-
-/* =========================
-   OWNED FILES (CENTER)
-   ========================= */
-async function loadFiles() {
-  const list = document.getElementById("fileList");
-  list.innerHTML = "<li>Loading...</li>";
-
-  try {
-    const res = await fetch("/api/files/my");
-
-    if (!res.ok) {
-      list.innerHTML = "<li>Error loading files</li>";
-      return;
-    }
-
-    const files = await res.json();
-    list.innerHTML = "";
-
-    if (!files.length) {
-      list.innerHTML = "<li>No files uploaded yet</li>";
-      return;
-    }
-
-    files.forEach(f => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        ${f.original_filename}
-        <button onclick="openShare(${f.id})">Share</button>
-      `;
-      list.appendChild(li);
-    });
-
-  } catch {
-    list.innerHTML = "<li>Failed to load files</li>";
-  }
-}
-
-/* =========================
-   SHARE MODAL LOGIC
-   ========================= */
-let selectedFileId = null;
-
-function openShare(fileId) {
-  selectedFileId = fileId;
-  document.getElementById("shareBox").style.display = "block";
-}
-
-function closeShare() {
-  document.getElementById("shareBox").style.display = "none";
-  document.getElementById("shareStatus").innerText = "";
-}
-
-async function submitShare() {
-  const username = document.getElementById("shareUsername").value.trim();
-  const expiry = document.getElementById("shareExpiry").value || null;
-  const status = document.getElementById("shareStatus");
-
-  if (!username) {
-    status.innerText = "Username required";
-    status.style.color = "red";
-    return;
-  }
-
-  const res = await fetch("/api/share", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      file_id: selectedFileId,
-      username: username,
-      expires_at: expiry
-    })
-  });
-
-  const data = await res.json();
-
-  if (res.ok) {
-    status.innerText = "File shared successfully";
-    status.style.color = "green";
-  } else {
-    status.innerText = data.error || "Sharing failed";
-    status.style.color = "red";
-  }
-}
-
-/* =========================
-   SHARED FILES (RIGHT)
-   ========================= */
-async function loadSharedFiles() {
-  const container = document.getElementById("sharedFiles");
-  container.innerText = "Loading...";
-
-  const res = await fetch("/api/files/shared");
-  const files = await res.json();
-
-  if (!res.ok) {
-    container.innerText = "Error loading shared files";
-    return;
-  }
-
-  if (!files.length) {
-    container.innerText = "No shared files";
-    return;
-  }
-
-  container.innerHTML = "";
-
-  files.forEach(f => {
-    const div = document.createElement("div");
-
-    const expiryText = f.expires_at
-      ? `Expires: ${new Date(f.expires_at).toLocaleString()}`
-      : "No expiry";
-
-    div.innerText = `${f.original_filename} (Owner: ${f.owner}) — ${expiryText}`;
-    container.appendChild(div);
-  });
-}
-
-/* =========================
-   INIT
-   ========================= */
-loadFiles();
-loadSharedFiles();
-</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 
 </body>
 </html>
