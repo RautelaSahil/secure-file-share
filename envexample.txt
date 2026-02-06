@@ -7,7 +7,7 @@ FLASK_ENV=development
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=1234
+DB_PASSWORD=1234//sqlpwd
 DB_NAME=secure_file_share
 
 # File Settings
